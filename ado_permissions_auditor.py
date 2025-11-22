@@ -62,8 +62,8 @@ class PermissionEntry:
     user_type: str
     vsts_group_name: str
     vsts_group_id: str
-    assignment_type: str  # 'direct' or AAD group name
-    aad_group_chain: str = ""  # Full chain if nested: "GroupA > GroupB > GroupC"
+    assignment_type: str  # 'direct' or group name
+    assignment_group_type: str = ""  # 'aad_group', 'vsts_group', or '' for direct
 
     def to_dict(self) -> dict[str, str]:
         """Convert to dictionary for CSV writing"""
@@ -453,10 +453,14 @@ class AzureDevOpsAuditor:
 
         # Different descriptor types require different endpoints
         # Group descriptors (vssgp, aadgp) -> /groups/ endpoint
+        # Service principal descriptors (aadsp) -> /serviceprincipals/ endpoint
         # User descriptors (aad, etc.) -> /users/ endpoint
         if descriptor.startswith(("vssgp.", "aadgp.")):
             # VSTS groups and AAD groups
             url = f"_apis/graph/groups/{descriptor}?api-version=7.1-preview.1"
+        elif descriptor.startswith("aadsp."):
+            # AAD Service Principals
+            url = f"_apis/graph/serviceprincipals/{descriptor}?api-version=7.1-preview.1"
         else:
             # Users and other identity types
             url = f"_apis/graph/users/{descriptor}?api-version=7.1-preview.1"
@@ -593,6 +597,13 @@ class AzureDevOpsAuditor:
         subject_kind = member.get("subjectKind", "").lower()
         domain = member.get("domain", "").lower()
         principal_name = member.get("principalName", "").lower()
+        descriptor = member.get("descriptor", "")
+
+        # Check descriptor prefix first - most reliable indicator
+        if descriptor.startswith("aadsp."):
+            return MemberType.SERVICE_PRINCIPAL
+        if descriptor.startswith(("vssgp.", "aadgp.")):
+            return MemberType.AAD_GROUP
 
         if subject_kind == "group":
             return MemberType.AAD_GROUP
@@ -670,25 +681,33 @@ class AzureDevOpsAuditor:
 
                             subject_kind = member_details.get("subjectKind", "")
 
-                            # If it's an AAD group, resolve its members
+                            # If it's a group, resolve its members
                             if subject_kind == "group":
-                                aad_group_name = member_details.get("displayName", "Unknown AAD Group")
+                                nested_group_name = member_details.get("displayName", "Unknown Group")
 
-                                # Resolve AAD group members recursively using the descriptor
+                                # Determine group type from descriptor
+                                if member_descriptor.startswith("aadgp."):
+                                    group_type = "aad_group"
+                                elif member_descriptor.startswith("vssgp."):
+                                    group_type = "vsts_group"
+                                else:
+                                    group_type = "group"
+
+                                # Resolve group members recursively using the descriptor
                                 resolved_members = await self.resolve_aad_group_members(
-                                    session, member_descriptor, aad_group_name, f"{project_name}:{group_name}"
+                                    session, member_descriptor, nested_group_name, f"{project_name}:{group_name}"
                                 )
 
                                 # Create permission entries for each resolved member
-                                for resolved_member, chain in resolved_members:
+                                for resolved_member, _chain in resolved_members:
                                     entry = self._create_permission_entry(
                                         project_name,
                                         project_id,
                                         resolved_member,
                                         group_name,
                                         group_descriptor,
-                                        aad_group_name,
-                                        chain,
+                                        nested_group_name,
+                                        group_type,
                                     )
 
                                     if entry:
@@ -698,7 +717,7 @@ class AzureDevOpsAuditor:
                             else:
                                 # Direct membership (user or service principal)
                                 entry = self._create_permission_entry(
-                                    project_name, project_id, member_details, group_name, group_descriptor, "direct", ""
+                                    project_name, project_id, member_details, group_name, group_descriptor, "direct"
                                 )
 
                                 if entry:
@@ -742,7 +761,7 @@ class AzureDevOpsAuditor:
         vsts_group_name: str,
         vsts_group_id: str,
         assignment_type: str,
-        aad_chain: str,
+        assignment_group_type: str = "",
     ) -> PermissionEntry | None:
         """
         Create a permission entry from member details
@@ -753,8 +772,8 @@ class AzureDevOpsAuditor:
             member: Member details dictionary
             vsts_group_name: VSTS group name
             vsts_group_id: VSTS group ID/descriptor
-            assignment_type: 'direct' or AAD group name
-            aad_chain: Full AAD group chain if nested
+            assignment_type: 'direct' or group name
+            assignment_group_type: 'aad_group', 'vsts_group', or '' for direct
 
         Returns:
             PermissionEntry or None if member details are insufficient
@@ -783,7 +802,7 @@ class AzureDevOpsAuditor:
                 vsts_group_name=vsts_group_name,
                 vsts_group_id=vsts_group_id,
                 assignment_type=assignment_type,
-                aad_group_chain=aad_chain,
+                assignment_group_type=assignment_group_type,
             )
 
         except Exception as e:
@@ -815,7 +834,7 @@ class AzureDevOpsAuditor:
 
                 if not projects:
                     logger.error("No projects found or failed to fetch projects. Exiting.")
-                    return
+                    raise RuntimeError("Failed to fetch projects - check authentication and organization name")
 
                 # Open CSV file for writing
                 with open(output_file, "w", newline="", encoding="utf-8") as csv_file:
@@ -829,7 +848,7 @@ class AzureDevOpsAuditor:
                         "vsts_group_name",
                         "vsts_group_id",
                         "assignment_type",
-                        "aad_group_chain",
+                        "assignment_group_type",
                     ]
 
                     writer = csv.DictWriter(csv_file, fieldnames=fieldnames)

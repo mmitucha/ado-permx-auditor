@@ -27,7 +27,7 @@ All output files are in the `audit_output/` directory:
 `audit_output/ado_permissions_audit_YYYYMMDD_HHMMSS.csv`
 
 Contains all permission assignments with columns:
-- Project, User, VSTS Group, Assignment Type, AAD Group Chain
+- Project, User, VSTS Group, Assignment Type, Assignment Group Type
 
 ### Log File
 `audit_output/ado_audit_YYYYMMDD_HHMMSS.log`
@@ -54,7 +54,7 @@ This provides insights on:
 - AAD group reuse patterns
 - Service principal inventory
 - Direct vs AAD assignments
-- Nested group structures
+- Group type breakdown (aad_group vs vsts_group)
 
 ## Key Features
 

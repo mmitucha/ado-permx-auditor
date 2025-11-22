@@ -63,9 +63,10 @@ if [ "$start_now" = "y" ] || [ "$start_now" = "Y" ]; then
     echo ""
 
     uv run ado_permissions_auditor.py
+    exit_code=$?
 
     # Check if audit completed successfully
-    if [ $? -eq 0 ]; then
+    if [ $exit_code -eq 0 ]; then
         echo ""
         echo "✓ Audit completed successfully!"
         echo ""
@@ -86,7 +87,27 @@ if [ "$start_now" = "y" ] || [ "$start_now" = "Y" ]; then
         fi
     else
         echo ""
-        echo "⚠️  Audit failed. Check the log file in audit_output/ for details."
+        echo "❌ Audit failed with exit code $exit_code"
+        echo ""
+
+        # Show recent log file for context
+        latest_log=$(ls -t audit_output/ado_audit_*.log 2>/dev/null | head -1)
+        if [ -n "$latest_log" ]; then
+            echo "Recent errors from $latest_log:"
+            echo "---"
+            grep -E "ERROR|CRITICAL" "$latest_log" | tail -10
+            echo "---"
+            echo ""
+            echo "Full log: $latest_log"
+        fi
+
+        echo ""
+        echo "Common issues:"
+        echo "  • 401 Unauthorized: Check your PAT token has correct permissions"
+        echo "  • Wrong account type: Ensure PAT is from work/school account, not personal"
+        echo "  • Organization name: Verify ADO_ORGANIZATION matches your Azure DevOps URL"
+        echo ""
+        exit 1
     fi
 else
     echo ""

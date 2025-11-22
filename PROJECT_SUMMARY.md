@@ -204,11 +204,11 @@ With caching:
 
 ### CSV Structure
 ```csv
-project_name,project_id,user_principal_name,user_display_name,user_id,user_type,vsts_group_name,vsts_group_id,assignment_type,aad_group_chain
+project_name,project_id,user_principal_name,user_display_name,user_id,user_type,vsts_group_name,vsts_group_id,assignment_type,assignment_group_type
 ProjectA,abc-123,user@example.com,User Name,uuid-456,user,Contributors,vssgp.xyz,direct,
-ProjectA,abc-123,user2@example.com,User Two,uuid-789,user,Contributors,vssgp.xyz,AAD_DevTeam,AAD_DevTeam
+ProjectA,abc-123,user2@example.com,User Two,uuid-789,user,Contributors,vssgp.xyz,AAD_DevTeam,aad_group
 ProjectB,def-456,service@app.com,Service,uuid-999,service_principal,Build Administrators,vssgp.def,direct,
-ProjectC,ghi-789,user3@example.com,User Three,uuid-111,user,Readers,vssgp.ghi,AAD_All > AAD_Sub,AAD_All > AAD_Sub
+ProjectC,ghi-789,user3@example.com,User Three,uuid-111,user,Readers,vssgp.ghi,Nested_Group,vsts_group
 ```
 
 ### Analysis Output

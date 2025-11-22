@@ -87,25 +87,25 @@ class PermissionsAnalyzer:
     
     def analyze_aad_groups(self) -> Dict:
         """Analyze AAD group usage"""
-        aad_group_usage = defaultdict(lambda: {'projects': set(), 'vsts_groups': set(), 'users': set()})
-        
+        aad_group_usage = defaultdict(lambda: {'projects': set(), 'vsts_groups': set(), 'users': set(), 'group_type': ''})
+
         for perm in self.permissions:
             if perm['assignment_type'] != 'direct':
-                # Extract first AAD group from chain
-                aad_group = perm['assignment_type']
-                if ' > ' in perm['aad_group_chain']:
-                    aad_group = perm['aad_group_chain'].split(' > ')[0]
-                
-                aad_group_usage[aad_group]['projects'].add(perm['project_name'])
-                aad_group_usage[aad_group]['vsts_groups'].add(perm['vsts_group_name'])
-                aad_group_usage[aad_group]['users'].add(perm['user_principal_name'])
+                group_name = perm['assignment_type']
+                group_type = perm.get('assignment_group_type', '')
+
+                aad_group_usage[group_name]['projects'].add(perm['project_name'])
+                aad_group_usage[group_name]['vsts_groups'].add(perm['vsts_group_name'])
+                aad_group_usage[group_name]['users'].add(perm['user_principal_name'])
+                aad_group_usage[group_name]['group_type'] = group_type
         
-        # Find most reused AAD groups
+        # Find most reused groups
         reused_groups = {
             group: {
                 'project_count': len(data['projects']),
                 'vsts_group_count': len(data['vsts_groups']),
-                'user_count': len(data['users'])
+                'user_count': len(data['users']),
+                'group_type': data['group_type']
             }
             for group, data in aad_group_usage.items()
         }
@@ -184,33 +184,23 @@ class PermissionsAnalyzer:
             'vsts_group_breakdown': dict(vsts_group_breakdown)
         }
     
-    def analyze_nested_groups(self) -> Dict:
-        """Analyze nested AAD group structures"""
-        nested_structures = defaultdict(int)
-        max_depth = 0
-        deep_chains = []
-        
+    def analyze_group_types(self) -> Dict:
+        """Analyze assignment group type breakdown"""
+        group_type_counts = defaultdict(int)
+        group_type_projects = defaultdict(set)
+
         for perm in self.permissions:
-            chain = perm.get('aad_group_chain', '')
-            if chain and ' > ' in chain:
-                depth = len(chain.split(' > '))
-                nested_structures[depth] += 1
-                
-                if depth > max_depth:
-                    max_depth = depth
-                
-                if depth >= 3:
-                    deep_chains.append({
-                        'chain': chain,
-                        'user': perm['user_principal_name'],
-                        'project': perm['project_name'],
-                        'depth': depth
-                    })
-        
+            group_type = perm.get('assignment_group_type', '')
+            if group_type:
+                group_type_counts[group_type] += 1
+                group_type_projects[group_type].add(perm['project_name'])
+            else:
+                group_type_counts['direct'] += 1
+
         return {
-            'max_nesting_depth': max_depth,
-            'nesting_depth_distribution': dict(nested_structures),
-            'deeply_nested_examples': sorted(deep_chains, key=lambda x: x['depth'], reverse=True)[:10]
+            'group_type_breakdown': dict(group_type_counts),
+            'aad_group_projects': len(group_type_projects.get('aad_group', set())),
+            'vsts_group_projects': len(group_type_projects.get('vsts_group', set()))
         }
     
     def analyze_projects(self) -> Dict:
@@ -276,7 +266,7 @@ class PermissionsAnalyzer:
         aad_analysis = self.analyze_aad_groups()
         sp_analysis = self.analyze_service_principals()
         assignment_analysis = self.analyze_assignment_types()
-        nested_analysis = self.analyze_nested_groups()
+        group_type_analysis = self.analyze_group_types()
         project_analysis = self.analyze_projects()
         
         report = {
@@ -291,7 +281,7 @@ class PermissionsAnalyzer:
             'aad_groups': aad_analysis,
             'service_principals': sp_analysis,
             'assignment_types': assignment_analysis,
-            'nested_groups': nested_analysis,
+            'group_types': group_type_analysis,
             'projects': project_analysis
         }
         
@@ -328,13 +318,9 @@ class PermissionsAnalyzer:
                 print(f"    - {group}: {stats['project_count']} projects, "
                       f"{stats['user_count']} users")
         
-        print(f"\nNESTED GROUP STRUCTURES:")
-        print(f"  Maximum nesting depth: {nested_analysis['max_nesting_depth']}")
-        
-        if nested_analysis['deeply_nested_examples']:
-            print(f"\n  Examples of deeply nested groups:")
-            for example in nested_analysis['deeply_nested_examples'][:3]:
-                print(f"    - Depth {example['depth']}: {example['chain']}")
+        print("\nGROUP TYPE BREAKDOWN:")
+        for group_type, count in group_type_analysis['group_type_breakdown'].items():
+            print(f"  {group_type}: {count:,}")
         
         print(f"\nPROJECT STATISTICS:")
         print(f"  Average permissions per project: {project_analysis['avg_permissions_per_project']:.1f}")

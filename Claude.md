@@ -307,3 +307,75 @@ DIRECT ASSIGNMENT ANALYSIS:
 4. Consider flagging high-risk direct assignments (admin groups, production projects)
 
 **Status**: 🔄 Pending implementation
+
+### 8. Service Principal Endpoint Fix (2025-11-22)
+**Problem**: AAD Service Principals (`aadsp.*` descriptors) were failing with 400 errors because they were being sent to the `/users/` endpoint.
+
+**Solution**: Added routing for `aadsp.*` descriptors to the `/serviceprincipals/` endpoint:
+```python
+if descriptor.startswith("aadsp."):
+    url = f"_apis/graph/serviceprincipals/{descriptor}?api-version=7.1-preview.1"
+```
+
+**Endpoint Routing Summary**:
+- `vssgp.*`, `aadgp.*` → `/groups/{descriptor}`
+- `aadsp.*` → `/serviceprincipals/{descriptor}`
+- Others (e.g., `aad.*`) → `/users/{descriptor}`
+
+### 9. Improved Member Type Detection (2025-11-22)
+**Problem**: Service principals were showing as `user_type: unknown` in CSV output.
+
+**Solution**: Updated `_determine_member_type()` to check descriptor prefix first:
+```python
+descriptor = member.get("descriptor", "")
+
+# Check descriptor prefix first - most reliable indicator
+if descriptor.startswith("aadsp."):
+    return MemberType.SERVICE_PRINCIPAL
+if descriptor.startswith(("vssgp.", "aadgp.")):
+    return MemberType.AAD_GROUP
+```
+
+### 10. CSV Schema Update (2025-11-22)
+**Changes**:
+- **Removed**: `aad_group_chain` column (redundant information)
+- **Added**: `assignment_group_type` column to show group type (`aad_group`, `vsts_group`, or empty for direct)
+
+**New CSV Columns**:
+| Column | Description |
+|--------|-------------|
+| `assignment_type` | `direct` or group name |
+| `assignment_group_type` | `aad_group`, `vsts_group`, or empty for direct |
+
+**Example**:
+```csv
+...,assignment_type,assignment_group_type
+...,direct,
+...,DevTeam,aad_group
+...,Nested_Group,vsts_group
+```
+
+### 11. Improved Error Handling in run_audit.sh (2025-11-22)
+**Problem**: Script showed "Audit completed successfully!" even on auth failures.
+
+**Solution**:
+- Python script now raises `RuntimeError` on project fetch failure
+- Shell script captures exit code and shows error details
+- Displays common troubleshooting tips for 401 errors
+- Only offers analysis on successful completion
+
+### 12. Updated analyze_permissions.py (2025-11-22)
+**Changes**:
+- Removed references to `aad_group_chain`
+- Added `group_type` tracking in analysis
+- Renamed `analyze_nested_groups()` to `analyze_group_types()`
+- Updated report output to show group type breakdown
+
+## Files Modified (2025-11-22)
+- `ado_permissions_auditor.py` - Service principal endpoint, member type detection, CSV schema
+- `analyze_permissions.py` - Updated for new CSV schema
+- `run_audit.sh` - Improved error handling
+- `README.md` - Updated CSV documentation
+- `ARCHITECTURE.md` - Updated CSV documentation
+- `PROJECT_SUMMARY.md` - Updated CSV documentation
+- `CLAUDE.md` - Session documentation

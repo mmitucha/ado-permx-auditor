@@ -358,15 +358,15 @@ graph LR
 | `user_type` | USER/SERVICE_PRINCIPAL/GROUP/AAD_GROUP |
 | `vsts_group_name` | VSTS security group name |
 | `vsts_group_id` | VSTS group descriptor |
-| `assignment_type` | 'direct' or AAD group name |
-| `aad_group_chain` | Full nested AAD group chain |
+| `assignment_type` | 'direct' or group name |
+| `assignment_group_type` | 'aad_group', 'vsts_group', or empty for direct |
 
 ### Example Output
 
 ```csv
-project_name,project_id,user_principal_name,user_display_name,user_id,user_type,vsts_group_name,vsts_group_id,assignment_type,aad_group_chain
+project_name,project_id,user_principal_name,user_display_name,user_id,user_type,vsts_group_name,vsts_group_id,assignment_type,assignment_group_type
 Main,abc-123,john@example.com,John Doe,xyz-789,user,Contributors,vssgp.XYZ,direct,
-Main,abc-123,jane@example.com,Jane Smith,def-456,user,Readers,vssgp.ABC,DevTeam,DevTeam > Engineers
+Main,abc-123,jane@example.com,Jane Smith,def-456,user,Readers,vssgp.ABC,DevTeam,aad_group
 ```
 
 ## Dependencies

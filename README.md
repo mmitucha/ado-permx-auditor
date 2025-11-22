@@ -136,50 +136,22 @@ auditor = AzureDevOpsAuditor(
 | `user_type` | Type: `user`, `service_principal`, `aad_group` |
 | `vsts_group_name` | Azure DevOps security group name |
 | `vsts_group_id` | Security group descriptor |
-| `assignment_type` | `direct` or AAD group name |
-| `aad_group_chain` | Full chain of nested AAD groups (e.g., "GroupA > GroupB > GroupC") |
+| `assignment_type` | `direct` or group name |
+| `assignment_group_type` | `aad_group`, `vsts_group`, or empty for direct |
 
 ### Example CSV Output
 
 ```csv
-project_name,project_id,user_principal_name,user_display_name,user_id,user_type,vsts_group_name,vsts_group_id,assignment_type,aad_group_chain
+project_name,project_id,user_principal_name,user_display_name,user_id,user_type,vsts_group_name,vsts_group_id,assignment_type,assignment_group_type
 ProjectA,abc-123,john@example.com,John Doe,uuid-456,user,Project Administrators,vssgp.xyz,direct,
-ProjectA,abc-123,jane@example.com,Jane Smith,uuid-789,user,Contributors,vssgp.abc,AAD_Dev_Team,AAD_Dev_Team
+ProjectA,abc-123,jane@example.com,Jane Smith,uuid-789,user,Contributors,vssgp.abc,AAD_Dev_Team,aad_group
 ProjectB,def-456,service@app.com,Service Account,uuid-999,service_principal,Build Administrators,vssgp.def,direct,
-ProjectC,ghi-789,user@example.com,User Name,uuid-111,user,Readers,vssgp.ghi,AAD_All_Users > AAD_SubGroup,AAD_All_Users > AAD_SubGroup
+ProjectC,ghi-789,user@example.com,User Name,uuid-111,user,Readers,vssgp.ghi,Nested_VSTS_Group,vsts_group
 ```
 
 ## Performance Characteristics
 
-### Expected Performance (1000 projects)
-
-Assuming:
-- Average 10 groups per project
-- Average 20 members per group
-- Average 30% cache hit rate for AAD groups
-
-**Without caching:**
-- Estimated API calls: ~200,000
-- Estimated time: 8-12 hours (with rate limiting)
-
-**With caching (this tool):**
-- Estimated API calls: ~50,000-80,000
-- Estimated time: 2-4 hours
-- Cache efficiency: 60-75%
-
-### Real-world Example
-
-Organization with:
-- 1,200 projects
-- 15,000 VSTS groups
-- 500 unique AAD groups (many reused across projects)
-- 8,000 unique users
-
-Results:
-- Total API calls: 62,000
-- Cache saved: 48,000 API calls (43% reduction)
-- Duration: 3.2 hours
-- Output: 185,000 permission entries
+TODO: Add real benchmark data
 
 ## Troubleshooting
 
